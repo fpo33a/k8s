@@ -1,0 +1,421 @@
+#
+# local storage
+#
+
+https://vocon-it.com/2018/12/20/kubernetes-local-persistent-volumes/
+https://blog.mayadata.io/kubernetes-storage-basics-pv-pvc-and-storageclass
+
+
+- Persistent volume claims will wait for a POD to show up before a local persistent volume is bound
+- Once a persistent local volume is bound to a claim, it remains bound, even if the requesting POD has died or has been deleted
+- A new POD can attach to the existing data in a local volume by referencing the same persistent volume claim
+- Similar to NFS shares, Kubernetes persistent local volumes allow multiple PODs to have read/write access
+
+--- start minikube
+C:\Kubernetes\Minikube>minikube.exe start
+* minikube v1.16.0 sur Microsoft Windows 8.1 6.3.9600 Build 9600
+* Utilisation du pilote virtualbox basé sur le profil existant
+
+X Exiting due to PROVIDER_VIRTUALBOX_NOT_RUNNING: exit status 1
+* Suggestion: Restart VirtualBox
+* Documentation: https://minikube.sigs.k8s.io/docs/reference/drivers/virtualbox/
+
+---> start the VM via virtualbox interface and then start minikube
+
+C:\Kubernetes\Minikube>minikube.exe start
+* minikube v1.16.0 sur Microsoft Windows 8.1 6.3.9600 Build 9600
+* Utilisation du pilote virtualbox basé sur le profil existant
+* Démarrage du noeud de plan de contrôle minikube dans le cluster minikube
+* Mise à jour du VM virtualbox en marche "minikube" ...
+* Préparation de Kubernetes v1.20.0 sur Docker 20.10.0...
+* Verifying Kubernetes components...
+* Enabled addons: storage-provisioner, dashboard, default-storageclass
+* Done! kubectl is now configured to use "minikube" cluster and "default" namespace by default
+
+--- connect to minikube VM via mobaxterm ( for correct keyboard mapping ) and create a /opt/data/index.html file
+
+user: docker 
+password: tcuser
+
+docker@192.168.99.100's password:
+     +--------------------------------------------------------------------+
+     ¦                        • MobaXterm 11.1 •                          ¦
+     ¦            (SSH client, X-server and networking tools)             ¦
+     ¦                                                                    ¦
+     ¦ ? SSH session to docker@192.168.99.100                             ¦
+     ¦   • SSH compression : ?                                            ¦
+     ¦   • SSH-browser     : ?                                            ¦
+     ¦   • X11-forwarding  : ?  (disabled or not supported by server)     ¦
+     ¦   • DISPLAY         : 192.168.0.11:0.0                             ¦
+     ¦                                                                    ¦
+     ¦ ? For more info, ctrl+click on help or visit our website           ¦
+     +--------------------------------------------------------------------+
+
+                         _             _
+            _         _ ( )           ( )
+  ___ ___  (_)  ___  (_)| |/')  _   _ | |_      __
+/' _ ` _ `\| |/' _ `\| || , <  ( ) ( )| '_`\  /'__`\
+| ( ) ( ) || || ( ) || || |\`\ | (_) || |_) )(  ___/
+(_) (_) (_)(_)(_) (_)(_)(_) (_)`\___/'(_,__/'`\____)
+
+$ su -
+# cd /data
+# ls -lrt
+total 0
+# echo "Hello local persistent volume" > /opt/data/index.html
+# cd /opt/data
+# ls -lrt
+total 4
+-rw-r--r-- 1 root root 30 Dec 31 07:24 index.html
+# cd ..
+# chmod -R 755 /opt/data
+# pwd
+/opt
+# ls
+cni  containerd  data
+# ls -lrt
+total 0
+drwxr-xr-x 3 root root 60 Dec 14 19:41 cni
+drwx--x--x 4 root root 80 Dec 31 07:14 containerd
+drwxr-xr-x 2 root root 60 Dec 31 07:24 data
+#
+# cat /opt/data/index.html
+Hello local persistent volume
+#
+
+
+----- 
+
+# check node info ( will need node name for pv affinity )
+
+C:\Kubernetes\Minikube>kubectl get nodes
+NAME       STATUS   ROLES                  AGE   VERSION
+minikube   Ready    control-plane,master   10d   v1.20.0
+
+C:\Kubernetes\Minikube>kubectl describe node minikube
+Name:               minikube
+Roles:              control-plane,master
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/os=linux
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=minikube
+                    kubernetes.io/os=linux
+                    minikube.k8s.io/commit=9f1e482427589ff8451c4723b6ba53bb9742fbb1
+                    minikube.k8s.io/name=minikube
+                    minikube.k8s.io/updated_at=2020_12_20T16_03_01_0700
+                    minikube.k8s.io/version=v1.16.0
+                    node-role.kubernetes.io/control-plane=
+                    node-role.kubernetes.io/master=
+Annotations:        kubeadm.alpha.kubernetes.io/cri-socket: /var/run/dockershim.sock
+                    node.alpha.kubernetes.io/ttl: 0
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Sun, 20 Dec 2020 16:02:58 +0100
+Taints:             <none>
+Unschedulable:      false
+Lease:
+  HolderIdentity:  minikube
+  AcquireTime:     <unset>
+  RenewTime:       Thu, 31 Dec 2020 08:33:36 +0100
+Conditions:
+  Type             Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----             ------  -----------------                 ------------------                ------                       -------
+  MemoryPressure   False   Thu, 31 Dec 2020 08:30:43 +0100   Sun, 20 Dec 2020 16:02:58 +0100   KubeletHasSufficientMemory   kubelet has suf
+  DiskPressure     False   Thu, 31 Dec 2020 08:30:43 +0100   Sun, 20 Dec 2020 16:02:58 +0100   KubeletHasNoDiskPressure     kubelet has no
+  PIDPressure      False   Thu, 31 Dec 2020 08:30:43 +0100   Sun, 20 Dec 2020 16:02:58 +0100   KubeletHasSufficientPID      kubelet has suf
+  Ready            True    Thu, 31 Dec 2020 08:30:43 +0100   Sun, 20 Dec 2020 16:03:16 +0100   KubeletReady                 kubelet is post
+Addresses:
+  InternalIP:  192.168.99.100
+  Hostname:    minikube
+Capacity:
+  cpu:                2
+  ephemeral-storage:  17784752Ki
+  hugepages-2Mi:      0
+  memory:             2186480Ki
+  pods:               110
+Allocatable:
+  cpu:                2
+  ephemeral-storage:  17784752Ki
+  hugepages-2Mi:      0
+  memory:             2186480Ki
+  pods:               110
+System Info:
+  Machine ID:                 ba9e5fefeebd4863afd7356acb6a283e
+  System UUID:                28a355b6-7505-b547-9064-dab87f051c47
+  Boot ID:                    80d3b4e8-cc80-4169-bfb8-c56ea4997af6
+  Kernel Version:             4.19.157
+  OS Image:                   Buildroot 2020.02.8
+  Operating System:           linux
+  Architecture:               amd64
+  Container Runtime Version:  docker://20.10.0
+  Kubelet Version:            v1.20.0
+  Kube-Proxy Version:         v1.20.0
+PodCIDR:                      10.244.0.0/24
+PodCIDRs:                     10.244.0.0/24
+Non-terminated Pods:          (10 in total)
+  Namespace                   Name                                         CPU Requests  CPU Limits  Memory Requests  Memory Limits  AGE
+  ---------                   ----                                         ------------  ----------  ---------------  -------------  ---
+  default                     hello-minikube-5d9b964bfb-lr6l8              0 (0%)        0 (0%)      0 (0%)           0 (0%)         10d
+  kube-system                 coredns-74ff55c5b-9gh4l                      100m (5%)     0 (0%)      70Mi (3%)        170Mi (7%)     10d
+  kube-system                 etcd-minikube                                100m (5%)     0 (0%)      100Mi (4%)       0 (0%)         10d
+  kube-system                 kube-apiserver-minikube                      250m (12%)    0 (0%)      0 (0%)           0 (0%)         10d
+  kube-system                 kube-controller-manager-minikube             200m (10%)    0 (0%)      0 (0%)           0 (0%)         10d
+  kube-system                 kube-proxy-jxpnn                             0 (0%)        0 (0%)      0 (0%)           0 (0%)         10d
+  kube-system                 kube-scheduler-minikube                      100m (5%)     0 (0%)      0 (0%)           0 (0%)         10d
+  kube-system                 storage-provisioner                          0 (0%)        0 (0%)      0 (0%)           0 (0%)         10d
+  kubernetes-dashboard        dashboard-metrics-scraper-c95fcf479-sbbr4    0 (0%)        0 (0%)      0 (0%)           0 (0%)         10d
+  kubernetes-dashboard        kubernetes-dashboard-6cff4c7c4f-cs9jg        0 (0%)        0 (0%)      0 (0%)           0 (0%)         10d
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests    Limits
+  --------           --------    ------
+  cpu                750m (37%)  0 (0%)
+  memory             170Mi (7%)  170Mi (7%)
+  ephemeral-storage  100Mi (0%)  0 (0%)
+  hugepages-2Mi      0 (0%)      0 (0%)
+Events:
+  Type    Reason                   Age                From        Message
+  ----    ------                   ----               ----        -------
+  Normal  NodeHasSufficientMemory  10d (x7 over 10d)  kubelet     Node minikube status is now: NodeHasSufficientMemory
+  Normal  NodeHasNoDiskPressure    10d (x6 over 10d)  kubelet     Node minikube status is now: NodeHasNoDiskPressure
+  Normal  NodeHasSufficientPID     10d (x6 over 10d)  kubelet     Node minikube status is now: NodeHasSufficientPID
+  Normal  Starting                 10d                kubelet     Starting kubelet.
+  Normal  NodeHasSufficientMemory  10d                kubelet     Node minikube status is now: NodeHasSufficientMemory
+  Normal  NodeHasNoDiskPressure    10d                kubelet     Node minikube status is now: NodeHasNoDiskPressure
+  Normal  NodeHasSufficientPID     10d                kubelet     Node minikube status is now: NodeHasSufficientPID
+  Normal  NodeAllocatableEnforced  10d                kubelet     Updated Node Allocatable limit across pods
+  Normal  NodeReady                10d                kubelet     Node minikube status is now: NodeReady
+  Normal  Starting                 10d                kube-proxy  Starting kube-proxy.
+  Normal  NodeAllocatableEnforced  10d                kubelet     Updated Node Allocatable limit across pods
+  Normal  Starting                 10d                kubelet     Starting kubelet.
+  Normal  NodeHasNoDiskPressure    10d (x8 over 10d)  kubelet     Node minikube status is now: NodeHasNoDiskPressure
+  Normal  NodeHasSufficientPID     10d (x7 over 10d)  kubelet     Node minikube status is now: NodeHasSufficientPID
+  Normal  NodeHasSufficientMemory  10d (x8 over 10d)  kubelet     Node minikube status is now: NodeHasSufficientMemory
+  Normal  Starting                 10d                kube-proxy  Starting kube-proxy.
+  Normal  Starting                 18m                kubelet     Starting kubelet.
+  Normal  NodeAllocatableEnforced  18m                kubelet     Updated Node Allocatable limit across pods
+  Normal  NodeHasSufficientMemory  18m (x8 over 18m)  kubelet     Node minikube status is now: NodeHasSufficientMemory
+  Normal  NodeHasNoDiskPressure    18m (x8 over 18m)  kubelet     Node minikube status is now: NodeHasNoDiskPressure
+  Normal  NodeHasSufficientPID     18m (x7 over 18m)  kubelet     Node minikube status is now: NodeHasSufficientPID
+  Normal  Starting                 17m                kube-proxy  Starting kube-proxy.
+
+C:\Kubernetes\Minikube>
+
+C:\Kubernetes\Minikube>kubectl get nodes
+NAME       STATUS   ROLES                  AGE   VERSION
+minikube   Ready    control-plane,master   10d   v1.20.0
+
+-- create storage class
+C:\Kubernetes\Minikube>kubectl create -f c:\frank\k8s\sc.yaml
+storageclass.storage.k8s.io/fp-local-sc created
+
+C:\Kubernetes\Minikube>more c:\frank\k8s\sc.yaml
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: fp-local-sc
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+
+C:\Kubernetes\Minikube>kubectl get sc
+NAME                 PROVISIONER                    RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+fp-local-sc          kubernetes.io/no-provisioner   Delete          WaitForFirstConsumer   false                  9m48s
+standard (default)   k8s.io/minikube-hostpath       Delete          Immediate              false                  10d
+
+
+-- create persistent volume ( node affinity must be set for this kind of storage )
+C:\Kubernetes\Minikube>kubectl create -f c:\frank\k8s\pv.yaml
+persistentvolume/fp-local-pv created
+
+C:\Kubernetes\Minikube>more c:\frank\k8s\pv.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: fp-local-pv
+spec:
+  capacity:
+    storage: 5M
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: fp-local-sc
+  local:
+    path: /opt/data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - minikube
+          
+C:\Kubernetes\Minikube>kubectl get pv
+NAME          CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   REASON   AGE
+fp-local-pv   5M         RWO            Retain           Available           fp-local-sc             3m42s
+
+-- create pv claim: note: the pvc is bound to pv through storageClassName
+
+C:\Kubernetes\Minikube>more c:\frank\k8s\pvc.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: fp-claim
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: fp-local-sc
+  resources:
+    requests:
+      storage: 5M
+
+C:\Kubernetes\Minikube>kubectl create -f c:\frank\k8s\pvc.yaml
+persistentvolumeclaim/fp-claim created
+
+C:\Kubernetes\Minikube>kubectl get pvc
+NAME       STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+fp-claim   Pending                                      fp-local-sc    10s
+
+C:\Kubernetes\Minikube>
+
+--- create pod
+
+C:\Kubernetes\Minikube>kubectl create -f c:\frank\k8s\pod.yaml
+pod/centos-local-volume created
+
+C:\Kubernetes\Minikube>more c:\frank\k8s\pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: centos-local-volume
+  labels:
+    name: centos-local-volume
+spec:
+  containers:
+  - name: centos
+    image: centos
+    command: ["/bin/sh"]
+    args: ["-c", "while true; do cat /data/index.html; sleep 10; done"]
+    volumeMounts:
+      - name: my-reference-to-the-volume
+        mountPath: /data
+  volumes:
+    - name: my-reference-to-the-volume
+      persistentVolumeClaim:
+        claimName: fp-claim
+
+C:\Kubernetes\Minikube>kubectl create -f c:\frank\k8s\pvc.yaml
+persistentvolumeclaim/fp-claim created
+
+C:\Kubernetes\Minikube>kubectl get pod
+NAME                              READY   STATUS    RESTARTS   AGE
+centos-local-volume               1/1     Running   0          50s
+hello-minikube-5d9b964bfb-lr6l8   1/1     Running   1          10d
+
+C:\Kubernetes\Minikube>
+C:\Kubernetes\Minikube>kubectl logs centos-local-volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+
+C:\Kubernetes\Minikube>
+C:\Kubernetes\Minikube>kubectl get sc,pv,pvc,pod
+NAME                                             PROVISIONER                    RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANS
+storageclass.storage.k8s.io/fp-local-sc          kubernetes.io/no-provisioner   Delete          WaitForFirstConsumer   false
+storageclass.storage.k8s.io/standard (default)   k8s.io/minikube-hostpath       Delete          Immediate              false
+
+NAME                           CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM              STORAGECLASS   REASON   AGE
+persistentvolume/fp-local-pv   5M         RWO            Retain           Bound    default/fp-claim   fp-local-sc             9m20s
+
+NAME                             STATUS   VOLUME        CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+persistentvolumeclaim/fp-claim   Bound    fp-local-pv   5M         RWO            fp-local-sc    3m48s
+
+NAME                                  READY   STATUS    RESTARTS   AGE
+pod/centos-local-volume               1/1     Running   0          111s
+pod/hello-minikube-5d9b964bfb-lr6l8   1/1     Running   1          10d
+
+--- update the file on the local storage
+# cat /opt/data/index.html
+Hello local persistent volume
+#
+# echo " and more data" >> /opt/data/index.html
+# more /opt/data/index.html
+Hello local persistent volume
+ and more data
+#
+
+--- check container logs
+C:\Kubernetes\Minikube>kubectl logs centos-local-volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+Hello local persistent volume
+ and more data
+Hello local persistent volume
+ and more data
+Hello local persistent volume
+ and more data
+Hello local persistent volume
+ and more data
+Hello local persistent volume
+ and more data
+
+C:\Kubernetes\Minikube>
+
+--- remmove unused pod ( from a previous try )
+C:\Kubernetes\Minikube>kubectl delete pod/hello-minikube-5d9b964bfb-lr6l8
+pod "hello-minikube-5d9b964bfb-lr6l8" deleted
+
+--- cleanup
+
+-- remove pod
+C:\Kubernetes\Minikube>kubectl delete pod/centos-local-volume
+pod "centos-local-volume" deleted
+
+-- note: the volume claim remains "bound"
+C:\Kubernetes\Minikube>kubectl get sc,pv,pvc,pod
+NAME                                             PROVISIONER                    RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION
+storageclass.storage.k8s.io/fp-local-sc          kubernetes.io/no-provisioner   Delete          WaitForFirstConsumer   false
+storageclass.storage.k8s.io/standard (default)   k8s.io/minikube-hostpath       Delete          Immediate              false
+
+NAME                           CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM              STORAGECLASS   REASON   AGE
+persistentvolume/fp-local-pv   5M         RWO            Retain           Bound    default/fp-claim   fp-local-sc             17m
+
+NAME                             STATUS   VOLUME        CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+persistentvolumeclaim/fp-claim   Bound    fp-local-pv   5M         RWO            fp-local-sc    11m
+
+NAME                                  READY   STATUS    RESTARTS   AGE
+pod/hello-minikube-5d9b964bfb-ffz5x   1/1     Running   0          5m29s
+
+-- remove other component
+C:\Kubernetes\Minikube>kubectl delete persistentvolumeclaim/fp-claim
+persistentvolumeclaim "fp-claim" deleted
+
+C:\Kubernetes\Minikube>kubectl delete persistentvolume/fp-local-pv
+persistentvolume "fp-local-pv" deleted
+
+C:\Kubernetes\Minikube>kubectl delete storageclass.storage.k8s.io/fp-local-sc
+storageclass.storage.k8s.io "fp-local-sc" deleted
+
+-- note: the "delete" unused cntainer is back up and running due to "restart" clause
+C:\Kubernetes\Minikube>kubectl get sc,pv,pvc,pod
+NAME                                             PROVISIONER                RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
+storageclass.storage.k8s.io/standard (default)   k8s.io/minikube-hostpath   Delete          Immediate           false                  10d
+
+NAME                                  READY   STATUS    RESTARTS   AGE
+pod/hello-minikube-5d9b964bfb-ffz5x   1/1     Running   0          7m24s
+
+-- stop minikube
+C:\Kubernetes\Minikube>minikube stop
+* Stopping node "minikube"  ...
+* 1 noud(s) arrêté(s).

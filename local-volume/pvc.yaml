@@ -1,0 +1,11 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: fp-claim
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: fp-local-sc
+  resources:
+    requests:
+      storage: 5M

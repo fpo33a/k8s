@@ -1,0 +1,263 @@
+------------------------------------------------------------------
+-- on the centos VM box - 192.168.0.36 setup the nfs server
+------------------------------------------------------------------
+
+yum -y install nfs-utils nfs-utils-lib
+chkconfig nfs on
+service rpcbind start
+service nfs start
+service nfslock start
+
+pwd
+cd /opt
+mkdir nfsshare
+chmod 777 nfsshare/
+cd nfsshare/
+vi data.txt
+chmod 766 data.txt
+
+[root@control-plane nfsshare]# vi /etc/exports
+[root@control-plane nfsshare]# exportfs -ra
+[root@control-plane nfsshare]# exportfs -v
+/opt/nfsshare 	<world>(sync,wdelay,hide,no_subtree_check,sec=sys,rw,insecure,no_root_squash,no_all_squash)
+[root@control-plane nfsshare]#
+
+[root@control-plane nfsshare]# more /opt/nfsshare/data.txt
+this is a data file
+
+------------------------------------------------------------------
+-- on the minikube box  check can mount remote disk
+------------------------------------------------------------------
+
+     ¦                        • MobaXterm 11.1 •                          ¦
+     ¦            (SSH client, X-server and networking tools)             ¦
+     ¦                                                                    ¦
+     ¦ ? SSH session to docker@192.168.99.100                             ¦
+     ¦   • SSH compression : ?                                            ¦
+     ¦   • SSH-browser     : ?                                            ¦
+     ¦   • X11-forwarding  : ?  (disabled or not supported by server)     ¦
+     ¦   • DISPLAY         : 192.168.0.11:0.0                             ¦
+     ¦                                                                    ¦
+     ¦ ? For more info, ctrl+click on help or visit our website           ¦
+     +--------------------------------------------------------------------+
+
+                         _             _
+            _         _ ( )           ( )
+  ___ ___  (_)  ___  (_)| |/')  _   _ | |_      __
+/' _ ` _ `\| |/' _ `\| || , <  ( ) ( )| '_`\  /'__`\
+| ( ) ( ) || || ( ) || || |\`\ | (_) || |_) )(  ___/
+(_) (_) (_)(_)(_) (_)(_)(_) (_)`\___/'(_,__/'`\____)
+
+$ ifconfig | more
+docker0   Link encap:Ethernet  HWaddr 02:42:7F:65:7E:59
+          inet addr:172.17.0.1  Bcast:172.17.255.255  Mask:255.255.0.0
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:1791 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:1944 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:217699 (212.5 KiB)  TX bytes:508133 (496.2 KiB)
+
+eth0      Link encap:Ethernet  HWaddr 08:00:27:BF:C4:02
+          inet addr:10.0.2.15  Bcast:10.0.2.255  Mask:255.255.255.0
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:1650 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:1161 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:215115 (210.0 KiB)  TX bytes:175605 (171.4 KiB)
+
+eth1      Link encap:Ethernet  HWaddr 08:00:27:65:72:08
+          inet addr:192.168.99.100  Bcast:192.168.99.255  Mask:255.255.255.0
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:307 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:200 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:37661 (36.7 KiB)  TX bytes:152650 (149.0 KiB)
+
+lo        Link encap:Local Loopback
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:88250 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:88250 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:24655706 (23.5 MiB)  TX bytes:24655706 (23.5 MiB)
+
+veth03b02a5 Link encap:Ethernet  HWaddr EE:C5:39:12:61:D7
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:359 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:430 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:37353 (36.4 KiB)  TX bytes:43872 (42.8 KiB)
+
+veth17ba46e Link encap:Ethernet  HWaddr C6:08:4A:58:26:FC
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:1033 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:1069 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:91291 (89.1 KiB)  TX bytes:414669 (404.9 KiB)
+
+veth3251a9b Link encap:Ethernet  HWaddr F6:D6:C9:A9:42:C4
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:3 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:0 (0.0 B)  TX bytes:126 (126.0 B)
+
+veth5966e8a Link encap:Ethernet  HWaddr F2:7C:7E:C9:48:B5
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:399 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:452 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:114129 (111.4 KiB)  TX bytes:49898 (48.7 KiB)
+
+-- ping windows host
+$ ping 192.168.0.11
+PING 192.168.0.11 (192.168.0.11): 56 data bytes
+64 bytes from 192.168.0.11: seq=0 ttl=127 time=1.237 ms
+64 bytes from 192.168.0.11: seq=1 ttl=127 time=0.779 ms
+64 bytes from 192.168.0.11: seq=2 ttl=127 time=4.757 ms
+64 bytes from 192.168.0.11: seq=3 ttl=127 time=15.733 ms
+^C
+
+-- ping nfs server
+$ ping 192.168.0.36
+PING 192.168.0.36 (192.168.0.36): 56 data bytes
+64 bytes from 192.168.0.36: seq=0 ttl=63 time=1.622 ms
+64 bytes from 192.168.0.36: seq=1 ttl=63 time=1.427 ms
+64 bytes from 192.168.0.36: seq=2 ttl=63 time=6.019 ms
+64 bytes from 192.168.0.36: seq=3 ttl=63 time=2.188 ms
+64 bytes from 192.168.0.36: seq=4 ttl=63 time=2.959 ms
+64 bytes from 192.168.0.36: seq=5 ttl=63 time=1.399 ms
+^C
+--- 192.168.0.36 ping statistics ---
+6 packets transmitted, 6 packets received, 0% packet loss
+round-trip min/avg/max = 1.399/2.602/6.019 ms
+
+-- create directory for mount
+# mkdir /mntnfs
+
+-- list mount  points
+# showmount -e 192.168.0.36
+Export list for 192.168.0.36:
+/opt/nfsshare *
+
+-- mount the directory
+# mount -t nfs -o nfsvers=3 192.168.0.36:/opt/nfsshare /mntnfs
+#
+
+-- check the file
+# cd /mntnfs
+# ls -lrt
+total 4
+-rwxrw-rw- 1 root root 20 Jan  2 08:17 data.txt
+# more data.txt
+this is a data file
+#
+
+
+------------------------------------------------------------------
+-- on k8s create a pod using a PV mounting the remote ( nfs ) disk
+------------------------------------------------------------------
+
+------ create the PV ----
+C:\Kubernetes\Minikube>kubectl get deployment
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+hello-minikube   1/1     1            1           12d
+
+C:\Kubernetes\Minikube>kubectl apply -f c:\frank\k8s\nfs-pv.yaml
+persistentvolume/fp-pv-nfs created
+
+C:\Kubernetes\Minikube>kubectl get pv
+NAME        CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS   REASON   AGE
+fp-pv-nfs   1M         RWO            Recycle          Available           slow                    7s
+
+C:\Kubernetes\Minikube>more c:\frank\k8s\nfs-pv.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: fp-pv-nfs
+spec:
+  capacity:
+    storage: 1M
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: slow
+  mountOptions:
+    - hard
+    - nfsvers=3
+  nfs:
+    path: /opt/nfsshare
+    server: 192.168.0.36
+
+C:\Kubernetes\Minikube>
+
+------ create the PVC ----
+C:\Kubernetes\Minikube>kubectl apply -f c:\frank\k8s\nfs-pvc.yaml
+persistentvolumeclaim/fp-nfs-claim created
+
+C:\Kubernetes\Minikube>kubectl get pvc
+NAME           STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+fp-nfs-claim   Pending                                      slow           6s
+
+C:\Kubernetes\Minikube>more c:\frank\k8s\nfs-pvc.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: fp-nfs-claim
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: slow
+  resources:
+    requests:
+      storage: 1M
+
+----- create a pod ----
+C:\Kubernetes\Minikube>kubectl apply -f c:\frank\k8s\nfs-pod.yaml
+pod/centos-nfs-volume created
+
+C:\Kubernetes\Minikube>more c:\frank\k8s\nfs-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: centos-nfs-volume
+  labels:
+    name: centos-nfs-volume
+spec:
+  containers:
+  - name: centos
+    image: centos
+    command: ["/bin/sh"]
+    args: ["-c", "while true; do cat /data/data.txt; sleep 10; done"]
+    volumeMounts:
+      - name: my-nfs-volume
+        mountPath: /data
+  volumes:
+    - name: my-nfs-volume
+      persistentVolumeClaim:
+        claimName: fp-nfs-claim
+
+
+C:\Kubernetes\Minikube>kubectl get pv,pvc,pod
+NAME                         CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                  STORAGECLASS   REASON   AGE
+persistentvolume/fp-pv-nfs   1M         RWO            Recycle          Bound    default/fp-nfs-claim   slow                    2m3s
+
+NAME                                 STATUS   VOLUME      CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+persistentvolumeclaim/fp-nfs-claim   Bound    fp-pv-nfs   1M         RWO            slow           118s
+
+NAME                                  READY   STATUS              RESTARTS   AGE
+pod/centos-nfs-volume                 1/1     Running             0          10s
+pod/hello-minikube-5d9b964bfb-ffz5x   1/1     Running             1          2d1h
+
+-- check the result !
+C:\Kubernetes\Minikube>kubectl logs pod/centos-nfs-volume
+this is a data file
+this is a data file
+
+C:\Kubernetes\Minikube>
+
+-- cleanup
+kubectl delete -f c:\frank\k8s\nfs-pod.yaml
+kubectl delete -f c:\frank\k8s\nfs-pvc.yaml
+kubectl delete -f c:\frank\k8s\nfs-pv.yaml

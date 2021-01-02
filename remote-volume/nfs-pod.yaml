@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: centos-nfs-volume
+  labels:
+    name: centos-nfs-volume
+spec:
+  containers:
+  - name: centos
+    image: centos
+    command: ["/bin/sh"]
+    args: ["-c", "while true; do cat /data/data.txt; sleep 10; done"]
+    volumeMounts:
+      - name: my-nfs-volume
+        mountPath: /data
+  volumes:
+    - name: my-nfs-volume
+      persistentVolumeClaim:
+        claimName: fp-nfs-claim
