@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fp-private-reg-centos
+spec:
+  containers:
+  - name: fp-private-reg-centos
+    image: fpregistry.local:5000/test-image:1.0
+    command: ["/bin/sh"]
+    args: ["-c", "while true; do cat /etc/hosts; sleep 10; done"]
+  imagePullSecrets:
+  - name: fp-private-registry

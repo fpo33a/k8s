@@ -1,0 +1,301 @@
+-- install package
+[root@control-plane run]# yum -y install docker-distribution
+Loaded plugins: fastestmirror, langpacks
+Loading mirror speeds from cached hostfile
+ * base: ftp.belnet.be
+ * epel: epel.mirror.nucleus.be
+ * extras: ftp.belnet.be
+ * updates: ftp.belnet.be
+docker-ce-stable                                                                                        | 3.5 kB  00:00:00     
+extras                                                                                                  | 2.9 kB  00:00:00     
+rancher-k3s-common-stable                                                                               | 2.9 kB  00:00:00     
+updates                                                                                                 | 2.9 kB  00:00:00     
+virtualbox/7/x86_64/signature                                                                           |  181 B  00:00:00     
+virtualbox/7/x86_64/signature                                                                           | 2.9 kB  00:00:00 !!! 
+Resolving Dependencies
+--> Running transaction check
+---> Package docker-distribution.x86_64 0:2.6.2-2.git48294d9.el7 will be installed
+--> Finished Dependency Resolution
+
+Dependencies Resolved
+
+===============================================================================================================================
+ Package                            Arch                  Version                                  Repository             Size
+===============================================================================================================================
+Installing:
+ docker-distribution                x86_64                2.6.2-2.git48294d9.el7                   extras                3.5 M
+
+Transaction Summary
+===============================================================================================================================
+Install  1 Package
+
+Total download size: 3.5 M
+Installed size: 12 M
+Downloading packages:
+docker-distribution-2.6.2-2.git48294d9.el7.x86_64.rpm                                                   | 3.5 MB  00:00:16     
+Running transaction check
+Running transaction test
+Transaction test succeeded
+Running transaction
+  Installing : docker-distribution-2.6.2-2.git48294d9.el7.x86_64                                                           1/1 
+  Verifying  : docker-distribution-2.6.2-2.git48294d9.el7.x86_64                                                           1/1 
+
+Installed:
+  docker-distribution.x86_64 0:2.6.2-2.git48294d9.el7
+
+Complete!
+
+
+-- edit & configure package
+[root@control-plane run]# cat /etc/docker-distribution/registry/config.yml
+version: 0.1
+log:
+  fields:
+    service: registry
+storage:
+    cache:
+        layerinfo: inmemory
+    filesystem:
+        rootdirectory: /var/lib/registry
+http:
+    addr: :5000
+[root@control-plane run]#
+
+
+-- setup firewall
+[root@control-plane run]# firewall-cmd --add-port=5000/tcp --permanent
+success
+[root@control-plane run]# firewall-cmd --reload
+success
+[root@control-plane run]# 
+[root@control-plane run]# systemctl start docker-distribution
+[root@control-plane run]# systemctl enable docker-distribution
+Created symlink from /etc/systemd/system/multi-user.target.wants/docker-distribution.service to /usr/lib/systemd/system/docker-distribution.service.
+[root@control-plane run]# 
+
+-- add some entry in etc/hosts (for ease of use)
+# cat /etc/hosts
+192.168.0.44 fpregistry.local
+
+-- !!!! ip address may change after VM restart !!! make sure to have correct one !!!
+
+-- pull centos image from dockerhub
+[root@control-plane run]# docker pull centos
+Using default tag: latest
+latest: Pulling from library/centos
+7a0437f04f83: Pull complete 
+Digest: sha256:5528e8b1b1719d34604c87e11dcd1c0a20bedf46e83b5632cdeac91b8c04efc1
+Status: Downloaded newer image for centos:latest
+[root@control-plane run]# docker images
+REPOSITORY                                TAG                 IMAGE ID            CREATED             SIZE
+k8s.gcr.io/kube-proxy                     v1.20.0             10cc881966cf        3 weeks ago         118MB
+k8s.gcr.io/kube-apiserver                 v1.20.0             ca9843d3b545        3 weeks ago         122MB
+k8s.gcr.io/kube-controller-manager        v1.20.0             b9fa1895dcaa        3 weeks ago         116MB
+k8s.gcr.io/kube-scheduler                 v1.20.0             3138b6e3d471        3 weeks ago         46.4MB
+centos                                    latest              300e315adb2f        3 weeks ago         209MB
+gcr.io/k8s-minikube/storage-provisioner   v4                  85069258b98a        4 weeks ago         29.7MB
+k8s.gcr.io/etcd                           3.4.13-0            0369cf4303ff        4 months ago        253MB
+k8s.gcr.io/coredns                        1.7.0               bfe3a36ebd25        6 months ago        45.2MB
+k8s.gcr.io/pause                          3.2                 80d28bedfe5d        10 months ago       683kB
+confluentinc/cp-kafka                     latest              aa982a32e7c4        22 months ago       569MB
+confluentinc/cp-zookeeper                 latest              16ce4511d84e        22 months ago       569MB
+portainer/portainer                       latest              00ead811e8ae        2 years ago         58.7MB
+portainer/portainer                       latest              00ead811e8ae        2 years ago         58.7MB
+apache/zeppelin                           0.8.0               353d7641c769        2 years ago         2.58GB
+[root@control-plane run]# 
+
+-- on trusted network we can have some insecure registry
+in /etc/docker/daemon.json add
+{
+ "insecure-registries" : ["fpregistry.local:5000"]
+}
+
+systemctl restart docker
+
+
+
+-- to push some image in local repository
+[root@control-plane run]# docker tag centos:latest fpregistry.local:5000/centos:lastest
+[root@control-plane run]# docker push fpregistry.local:5000/centos:lastest
+The push refers to repository [fpregistry.local:5000/centos]
+2653d992f4ef: Pushed 
+lastest: digest: sha256:dbbacecc49b088458781c16f3775f2a2ec7521079034a7ba499c8b0bb7f86875 size: 529
+[root@control-plane run]# 
+
+-- check image is in local registry
+[root@control-plane run]# ls -lrt /var/lib/registry/docker/registry/v2/repositories
+total 0
+drwxr-xr-x. 5 root root 55 Jan  3 12:01 centos
+[root@control-plane run]# ls -lrt /var/lib/registry/docker/registry/v2/repositories/centos/
+total 0
+drwxr-xr-x. 3 root root 20 Jan  3 12:01 _layers
+drwxr-xr-x. 2 root root  6 Jan  3 12:01 _uploads
+drwxr-xr-x. 4 root root 35 Jan  3 12:01 _manifests
+[root@control-plane run]# 
+
+
+-- install htpasswd tool
+[root@control-plane run]#  yum install httpd-tools -y
+Loaded plugins: fastestmirror, langpacks
+Loading mirror speeds from cached hostfile
+Could not get metalink https://mirrors.fedoraproject.org/metalink?repo=epel-7&arch=x86_64 error was
+12: Timeout on https://mirrors.fedoraproject.org/metalink?repo=epel-7&arch=x86_64: (28, 'Operation timed out after 30009 milliseconds with 0 out of 0 bytes received')
+ * base: ftp.belnet.be
+ * epel: epel.mirror.nucleus.be
+ * extras: ftp.belnet.be
+ * updates: mirroir.wptheme.fr
+Resolving Dependencies
+--> Running transaction check
+---> Package httpd-tools.x86_64 0:2.4.6-97.el7.centos will be installed
+--> Finished Dependency Resolution
+
+Dependencies Resolved
+
+===============================================================================================================================
+ Package                       Arch                     Version                                Repository                 Size
+===============================================================================================================================
+Installing:
+ httpd-tools                   x86_64                   2.4.6-97.el7.centos                    updates                    93 k
+
+Transaction Summary
+===============================================================================================================================
+Install  1 Package
+
+Total download size: 93 k
+Installed size: 168 k
+Downloading packages:
+httpd-tools-2.4.6-97.el7.centos.x86_64.rpm                                                              |  93 kB  00:00:15     
+Running transaction check
+Running transaction test
+Transaction test succeeded
+Running transaction
+  Installing : httpd-tools-2.4.6-97.el7.centos.x86_64                                                                      1/1 
+  Verifying  : httpd-tools-2.4.6-97.el7.centos.x86_64                                                                      1/1 
+
+Installed:
+  httpd-tools.x86_64 0:2.4.6-97.el7.centos                                                                                     
+
+Complete!
+[root@control-plane run]# 
+
+-- create password file for user 'frank'  !!!!! important to use -B (encryption) otherwise docker login fails with 401 
+htpasswd -Bbn frank <pwd> > /etc/docker/.htpasswd
+
+-- verify password
+[root@control-plane docker]# htpasswd -v /etc/docker/.htpasswd frank
+Enter password: 
+Password for user frank correct.
+
+[root@control-plane run]# ls -lrta /etc/docker
+total 28
+-rw-------.   1 root root   244 Nov 24  2018 key.json
+drwxr-xr-x. 150 root root 12288 Jan  3 11:53 ..
+-rw-r--r--.   1 root root    55 Jan  3 11:59 daemon.json
+drwxr-xr-x.   2 root root    58 Jan  3 12:08 .
+-rw-r--r--.   1 root root    44 Jan  3 12:08 .htpasswd
+[root@control-plane run]# 
+[root@control-plane run]# more /etc/docker/key.json
+{"crv":"P-256","d":"HNXzMR_kUf5yeHfKX_zra5FyaSjif8FS7z6qVUTsUrQ","kid":"RGBK:YQPG:DHSK:LK3N:MOC2:SO74:C5XM:BWBU:AC4E:A4O2:U4CG:YCLX","kty":"EC","x":"vRkNz_4KY2irZbMOFqoBzUUZvJSjGD9jQcIoJdiILPk","y":"UsQT0WNWRebkhZ3GOGFxzri7Z-SSwMtAap2_2lbNcQ8"}
+[root@control-plane run]# 
+[root@control-plane docker]# more /etc/docker/.htpasswd 
+frank:$2y$05$5T5oL2bfJdP0vdkcAdrVx.m3AgTtqrr4BedgaRJRlI8FHXPKGvhf2
+
+[root@control-plane run]#
+
+-- add auth in docker registry configuration
+[root@control-plane docker]# cat /etc/docker-distribution/registry/config.yml
+version: 0.1
+log:
+  fields:
+    service: registry
+storage:
+    cache:
+        layerinfo: inmemory
+    filesystem:
+        rootdirectory: /var/lib/registry
+http:
+    addr: :5000
+auth:
+  htpasswd:
+    realm: basic-realm
+    path: /etc/docker/.htpasswd
+[root@control-plane docker]# 
+
+-- restart docker & docker-distribution
+[root@control-plane run]# systemctl restart docker-distribution
+[root@control-plane run]# systemctl restart docker
+
+-- check login to private repo
+[root@control-plane docker]# docker login fpregistry.local:5000
+Username: frank
+Password:
+WARNING! Your password will be stored unencrypted in /root/.docker/config.json.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+
+Login Succeeded
+[root@control-plane docker]#
+
+
+-- check repo content
+[root@control-plane docker]# curl -ik --user frank:<pwd> http://fpregistry.local:5000/v2/_catalog
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Docker-Distribution-Api-Version: registry/2.0
+Date: Sun, 03 Jan 2021 12:34:46 GMT
+Content-Length: 28
+
+{"repositories":["centos"]}
+
+-- test login, push & pull & logout
+[root@control-plane docker]# docker login fpregistry.local:5000
+Username: frank
+Password: 
+WARNING! Your password will be stored unencrypted in /root/.docker/config.json.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+
+Login Succeeded
+
+-- (we removed image using docker rmi first for test purpose) & then pull it again
+[root@control-plane docker]# docker pull fpregistry.local:5000/centos:lastest
+lastest: Pulling from centos
+7a0437f04f83: Pull complete 
+Digest: sha256:dbbacecc49b088458781c16f3775f2a2ec7521079034a7ba499c8b0bb7f86875
+Status: Downloaded newer image for fpregistry.local:5000/centos:lastest
+[root@control-plane docker]# docker images
+REPOSITORY                                TAG                 IMAGE ID            CREATED             SIZE
+k8s.gcr.io/kube-proxy                     v1.20.0             10cc881966cf        3 weeks ago         118MB
+k8s.gcr.io/kube-scheduler                 v1.20.0             3138b6e3d471        3 weeks ago         46.4MB
+k8s.gcr.io/kube-controller-manager        v1.20.0             b9fa1895dcaa        3 weeks ago         116MB
+k8s.gcr.io/kube-apiserver                 v1.20.0             ca9843d3b545        3 weeks ago         122MB
+fpregistry.local:5000/centos              lastest             300e315adb2f        3 weeks ago         209MB
+gcr.io/k8s-minikube/storage-provisioner   v4                  85069258b98a        4 weeks ago         29.7MB
+k8s.gcr.io/etcd                           3.4.13-0            0369cf4303ff        4 months ago        253MB
+k8s.gcr.io/coredns                        1.7.0               bfe3a36ebd25        6 months ago        45.2MB
+k8s.gcr.io/pause                          3.2                 80d28bedfe5d        10 months ago       683kB
+confluentinc/cp-kafka                     latest              aa982a32e7c4        22 months ago       569MB
+confluentinc/cp-zookeeper                 latest              16ce4511d84e        22 months ago       569MB
+portainer/portainer                       latest              00ead811e8ae        2 years ago         58.7MB
+portainer/portainer                       latest              00ead811e8ae        2 years ago         58.7MB
+apache/zeppelin                           0.8.0               353d7641c769        2 years ago         2.58GB
+[root@control-plane docker]# docker tag fpregistry.local:5000/centos:lastest fpregistry.local:5000/test-image:1.0
+[root@control-plane docker]# docker push fpregistry.local:5000/test-image:1.0
+The push refers to repository [fpregistry.local:5000/test-image]
+2653d992f4ef: Mounted from centos 
+1.0: digest: sha256:dbbacecc49b088458781c16f3775f2a2ec7521079034a7ba499c8b0bb7f86875 size: 529
+[root@control-plane docker]# curl -ik --user frank:frank http://fpregistry.local:5000/v2/_catalog 
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Docker-Distribution-Api-Version: registry/2.0
+Date: Sun, 03 Jan 2021 12:40:17 GMT
+Content-Length: 41
+
+{"repositories":["centos","test-image"]}
+[root@control-plane docker]# ls -lrt /var/lib/registry/docker/registry/v2/repositories
+total 0
+drwxr-xr-x. 5 root root 55 Jan  3 12:01 centos
+drwxr-xr-x. 5 root root 55 Jan  3 13:40 test-image
+[root@control-plane docker]# docker logout fpregistry.local:5000
+Removing login credentials for fpregistry.local:5000
+[root@control-plane docker]# 
