@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fp-configmap-file
+data:
+  myfile.conf: |
+    field1: This is field 1
+    field2: This is field 2
+

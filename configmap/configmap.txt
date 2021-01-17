@@ -1,0 +1,155 @@
+----------------------------------------------------
+-- Test configuration map with environment variables
+----------------------------------------------------
+
+C:\Kubernetes\Minikube>more c:\frank\k8s\configmap\configmap-env.yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fp-configmap-env
+data:
+  my_host: FRANK_HOST
+
+C:\Kubernetes\Minikube>more c:\frank\k8s\configmap\deployment-cm-env.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fp-test-cm-env
+  labels:
+    app: fp-test-cm-env
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fp-test-cm-env
+  template:
+    metadata:
+      labels:
+        app: fp-test-cm-env
+    spec:
+      containers:
+      - name: fp-test-cm-env
+        image: centos
+        command: ["/bin/sh"]
+        args: ["-c", "while true; do echo $MY_HOST; sleep 10; done"]
+        env:
+          # Define the environment variable
+          - name: MY_HOST
+            valueFrom:
+              configMapKeyRef:
+               # The ConfigMap containing the value you want to assign to MY_HOST
+                name: fp-configmap-env
+                # Specify the key associated with the value
+                key: my_host
+
+
+C:\Kubernetes\Minikube>kubectl apply -f c:\frank\k8s\configmap\configmap-env.yml
+configmap/fp-configmap-env created
+
+C:\Kubernetes\Minikube>kubectl apply -f c:\frank\k8s\configmap\deployment-cm-env.yml
+deployment.apps/fp-test-cm-env created
+
+-- check result
+C:\Kubernetes\Minikube>kubectl get pod
+NAME                              READY   STATUS    RESTARTS   AGE
+fp-test-cm-env-68df45c6c-7cscm    1/1     Running   0          9s
+fp-test-cm-env-68df45c6c-bw9jd    1/1     Running   0          9s
+fp-test-cm-env-68df45c6c-z7pmd    1/1     Running   0          9s
+hello-minikube-5d9b964bfb-ffz5x   1/1     Running   11         17d
+
+C:\Kubernetes\Minikube>kubectl logs fp-test-cm-env-68df45c6c-7cscm
+FRANK_HOST
+FRANK_HOST
+FRANK_HOST
+FRANK_HOST
+FRANK_HOST
+
+-- clean up
+C:\Kubernetes\Minikube>kubectl delete -f  c:\frank\k8s\configmap\deployment-cm-env.yml
+deployment.apps "fp-test-cm-env" deleted
+
+C:\Kubernetes\Minikube>kubectl delete -f  c:\frank\k8s\configmap\configmap-env.yml
+configmap "fp-configmap-env" deleted
+
+
+----------------------------------------------------
+-- Test configuration map with configuration file
+----------------------------------------------------
+
+C:\Kubernetes\Minikube>more c:\frank\k8s\configmap\configmap-file.yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fp-configmap-file
+data:
+  myfile.conf: |
+    field1: This is field 1
+    field2: This is field 2
+
+
+C:\Kubernetes\Minikube>more c:\frank\k8s\configmap\deployment-cm-file.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fp-test-cm-file
+  labels:
+    app: fp-test-cm-file
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fp-test-cm-file
+  template:
+    metadata:
+      labels:
+        app: fp-test-cm-file
+    spec:
+      containers:
+      - name: fp-test-cm-file
+        image: centos
+        command: ["/bin/sh"]
+        args: ["-c", "while true; do cat /etc/config/myfile.conf; sleep 10; done"]
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            # Provide the name of the ConfigMap containing the files you want to add to the container
+            name: fp-configmap-file
+
+C:\Kubernetes\Minikube>
+
+C:\Kubernetes\Minikube>kubectl apply -f c:\frank\k8s\configmap\configmap-file.yml
+configmap/fp-configmap-file created
+
+C:\Kubernetes\Minikube>kubectl apply -f c:\frank\k8s\configmap\deployment-cm-file.yml
+deployment.apps/fp-test-cm-file created
+
+-- check results
+C:\Kubernetes\Minikube>kubectl get pod
+NAME                               READY   STATUS              RESTARTS   AGE
+fp-test-cm-file-675cb6c6d6-qzhnh   1/1     Running             0          7s
+fp-test-cm-file-675cb6c6d6-xz79c   0/1     ContainerCreating   0          7s
+fp-test-cm-file-675cb6c6d6-z2d89   1/1     Running             0          7s
+hello-minikube-5d9b964bfb-ffz5x    1/1     Running             11         17d
+
+C:\Kubernetes\Minikube>kubectl logs fp-test-cm-file-675cb6c6d6-qzhnh
+field1: This is field 1
+field2: This is field 2
+field1: This is field 1
+field2: This is field 2
+
+C:\Kubernetes\Minikube>kubectl get pod
+NAME                               READY   STATUS    RESTARTS   AGE
+fp-test-cm-file-675cb6c6d6-qzhnh   1/1     Running   0          23s
+fp-test-cm-file-675cb6c6d6-xz79c   1/1     Running   0          23s
+fp-test-cm-file-675cb6c6d6-z2d89   1/1     Running   0          23s
+hello-minikube-5d9b964bfb-ffz5x    1/1     Running   11         17d
+
+-- clean up
+C:\Kubernetes\Minikube>kubectl delete -f  c:\frank\k8s\configmap\deployment-cm-file.yml
+deployment.apps "fp-test-cm-file" deleted
+
+C:\Kubernetes\Minikube>kubectl delete -f  c:\frank\k8s\configmap\configmap-file.yml
+configmap "fp-configmap-file" deleted

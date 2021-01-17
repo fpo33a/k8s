@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fp-test-cm-file
+  labels:
+    app: fp-test-cm-file
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fp-test-cm-file
+  template:
+    metadata:
+      labels:
+        app: fp-test-cm-file
+    spec:
+      containers:
+      - name: fp-test-cm-file
+        image: centos
+        command: ["/bin/sh"]
+        args: ["-c", "while true; do cat /etc/config/myfile.conf; sleep 10; done"]
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            # Provide the name of the ConfigMap containing the files you want to add to the container
+            name: fp-configmap-file

@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fp-test-cm-env
+  labels:
+    app: fp-test-cm-env
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fp-test-cm-env
+  template:
+    metadata:
+      labels:
+        app: fp-test-cm-env
+    spec:
+      containers:
+      - name: fp-test-cm-env
+        image: centos
+        command: ["/bin/sh"]
+        args: ["-c", "while true; do echo $MY_HOST; sleep 10; done"]
+        env:
+          # Define the environment variable
+          - name: MY_HOST
+            valueFrom:
+              configMapKeyRef:
+               # The ConfigMap containing the value you want to assign to MY_HOST
+                name: fp-configmap-env
+                # Specify the key associated with the value
+                key: my_host
