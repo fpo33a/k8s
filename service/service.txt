@@ -1,0 +1,175 @@
+service logic
+
+- multiple pods exposing container ports ( each pod having its own "ephemeral" ip )
+- service as proxy on front on pods ( service exposes his own "permanant" ip & port ingress can use )
+- ingress to allow external app to connect to service
+- ingress connects to service by using service name
+- service is linked 
+  - to pod via selector ( spec / selector / app / "mysvcname" ) & the pods have label in template / metadata / labels / app / "mysvcname"
+  - to port via service attribute targetPort ( must match pod exposed port )
+- when creating a service k8s also creates a endpoint object with same name to keep track which pods are members of a service
+- service can expose more than one port. In this case they must be named
+- setting 'ClusterIP' to "None" allows to create a headless service - the ip of the pod is used instead of the ip of the svc
+- setting service 'type' - it can be "ClusterIP" ( default if type is not specified ), "NodePort" or "LoadBalancer"
+- "ClusterIP" service is only accessible within K8s
+- "NodePort"  exposes the static port ( between 30000 & 32767 ) on each worker node of k8s to external apps 
+   a "ClusterIP" is automatically added when defining a "NodePort" svc, for internal k8s cluster usage
+   
+   NodePort is not secure ( exposing port of each node ) - recommend loadbalancer svc or ingress - useful to test service
+- load balancer svc - create a clusterip svc + a nodeport svc - this last one pod port exposed is only accessible by load balancer 
+
+Service demo
+- this demo relies on a previous one using a local docker repo ( so the vm with this repo must be up & running )
+  make sure minikube docker service file is updated with insecure info & /etc/hosts with repo ip
+
+-- create a simple app
+[frank@control-plane echo]$ more echo.py
+# Echo server program
+import socket
+import sys
+
+HOST = ''                 # Symbolic name meaning all available interfaces
+PORT = 50007              # Arbitrary non-privileged port
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind((HOST, PORT))
+s.listen(1)
+print ( socket.gethostname()+ ' listening on port ',PORT)
+conn, addr = s.accept()
+print ('Connected by', addr)
+while 1:
+  data = conn.recv(1024)
+  if not data: break
+  print (data)
+  conn.sendall(data)
+  mychar = data.decode('cp855')
+  print ('mychar ',mychar)
+  if mychar == "x":
+    print ("exit")
+    sys.exit()
+conn.close()
+
+-- create docker image
+[frank@control-plane echo]$ more Dockerfile 
+FROM python:3
+
+ADD echo.py /tmp
+
+CMD [ "python", "/tmp/echo.py" ]
+[frank@control-plane echo]$ 
+
+-- push image in private repo
+[root@control-plane ~]# docker push fpregistry.local:5000/echo:1
+The push refers to repository [fpregistry.local:5000/echo]
+f8d024d24652: Pushed 
+394ec6c8d61d: Mounted from python 
+c5e393b8a19a: Mounted from python 
+b3f4557ae183: Mounted from python 
+9f5b4cdea532: Mounted from python 
+cd702377e4e5: Mounted from python 
+aa7af8a465c6: Mounted from python 
+ef9a7b8862f4: Mounted from python 
+a1f2f42922b1: Mounted from python 
+4762552ad7d8: Mounted from python 
+1: digest: sha256:2ca07b05a5bf997dd3582be86e74c431d57f0bd9f6488ac1f5ac57476d148690 size: 2424
+[root@control-plane ~]# 
+
+
+-- create the secret to access docker repo
+kubectl create secret docker-registry fp-private-registry --docker-server=http://fpregistry.local:5000/ --docker-username=frank  --docker-password=frank
+
+C:\Kubernetes\Minikube>kubectl get secret
+NAME                  TYPE                                  DATA   AGE
+default-token-zrr76   kubernetes.io/service-account-token   3      34d
+fp-private-registry   kubernetes.io/dockerconfigjson        1      25m
+
+
+-- create the deployment
+kubectl apply -f c:\frank\k8s\service\deployment-file.yml
+
+C:\Kubernetes\Minikube>more c:\frank\k8s\service\deployment-file.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fp-test-svc
+  labels:
+    app: fp-test-svc
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fp-test-echosvc
+  template:
+    metadata:
+      labels:
+        app: fp-test-echosvc
+    spec:
+      imagePullSecrets:
+      - name: fp-private-registry
+      containers:
+      - name: fp-echo-svc
+        image: fpregistry.local:5000/echo:1
+        ports:
+        - containerPort: 50007
+
+C:\Kubernetes\Minikube>kubectl get deployment
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+fp-test-svc      3/3     3            3           4m6s
+hello-minikube   1/1     1            1           34d
+
+C:\Kubernetes\Minikube>kubectl get pod -o wide
+NAME                              READY   STATUS    RESTARTS   AGE     IP           NODE       NOMINATED NODE   READINESS GATES
+fp-test-svc-7679dd5457-c6w2x      1/1     Running   0          4m13s   172.17.0.7   minikube   <none>           <none>
+fp-test-svc-7679dd5457-kvkmj      1/1     Running   0          4m13s   172.17.0.6   minikube   <none>           <none>
+fp-test-svc-7679dd5457-s52d5      1/1     Running   0          4m13s   172.17.0.8   minikube   <none>           <none>
+hello-minikube-5d9b964bfb-ffz5x   1/1     Running   14         23d     172.17.0.3   minikube   <none>           <none>
+
+-- create the service
+kubectl apply -f c:\frank\k8s\service\service.yml
+
+C:\Kubernetes\Minikube>more  c:\frank\k8s\service\service.yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fp-service
+spec:
+  type: NodePort
+  selector:
+    app: fp-test-echosvc
+  ports:
+    - protocol: TCP
+      port: 50017
+      targetPort: 50007
+      nodePort: 30007
+
+C:\Kubernetes\Minikube>kubectl get svc
+NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)           AGE
+fp-service   NodePort    10.96.144.191   <none>        50017:30007/TCP   20s
+kubernetes   ClusterIP   10.96.0.1       <none>        443/TCP           34d
+
+-- check that on minikube host the service is exposed
+# hostname
+minikube
+# netstat -an | grep 3000
+tcp        0      0 0.0.0.0:30007           0.0.0.0:*               LISTEN
+#
+
+-- test the echo service : open a telnet connection on minikube:30007 and check the echo service
+     +--------------------------------------------------------------------+
+     ¦                        • MobaXterm 11.1 •                          ¦
+     ¦            (SSH client, X-server and networking tools)             ¦
+     ¦                                                                    ¦
+     ¦ ? Telnet session to 192.168.99.100                                 ¦
+     ¦ ? Your DISPLAY is set to 192.168.0.11:0.0                          ¦
+     ¦ ? For more info, ctrl+click on help or visit our website           ¦
+     +--------------------------------------------------------------------+
+
+aabbccddeeff
+
+--> it works  (each typed letter is "echoed"
+
+-- list of containers 
+kubectl get pod fp-test-svc-7679dd5457-kvkmj -o jsonpath="{.spec['containers','initContainers'][*].name}"
+
+C:\Kubernetes\Minikube>kubectl get pod fp-test-svc-7679dd5457-kvkmj -o jsonpath="{.spec['containers','initContainers'][*].name}"
+fp-echo-svc
+C:\Kubernetes\Minikube>

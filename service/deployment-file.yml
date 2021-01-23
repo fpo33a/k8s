@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fp-test-svc
+  labels:
+    app: fp-test-svc
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fp-test-echosvc
+  template:
+    metadata:
+      labels:
+        app: fp-test-echosvc
+    spec:
+      imagePullSecrets:
+      - name: fp-private-registry
+      containers:
+      - name: fp-echo-svc
+        image: fpregistry.local:5000/echo:1
+        ports:
+        - containerPort: 50007
