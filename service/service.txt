@@ -173,3 +173,73 @@ kubectl get pod fp-test-svc-7679dd5457-kvkmj -o jsonpath="{.spec['containers','i
 C:\Kubernetes\Minikube>kubectl get pod fp-test-svc-7679dd5457-kvkmj -o jsonpath="{.spec['containers','initContainers'][*].name}"
 fp-echo-svc
 C:\Kubernetes\Minikube>
+
+-- from minikube host kill one service ( 1/3 ) your terminal is on it
+# docker ps | grep echo
+598f2ad0a229   fpregistry.local:5000/echo   "python /tmp/echo.py"    20 minutes ago   Up 20 minutes             k8s_fp-echo-svc_fp-test-svc-7679dd5457-c6w2x_default_8cb9e308-2231-4160-a26f-3bb7f682ad47_0
+d97a82e6d68d   fpregistry.local:5000/echo   "python /tmp/echo.py"    20 minutes ago   Up 20 minutes             k8s_fp-echo-svc_fp-test-svc-7679dd5457-s52d5_default_c674ffae-d68f-48dc-ab85-1b8b73ea0366_0
+06136987a53f   fpregistry.local:5000/echo   "python /tmp/echo.py"    20 minutes ago   Up 20 minutes             k8s_fp-echo-svc_fp-test-svc-7679dd5457-kvkmj_default_afe9afcf-5703-42a1-92bc-4bfcd5afc187_0
+01057639e415   365ec60129c5                 "/usr/local/bin/run.…"   28 minutes ago   Up 28 minutes             k8s_echoserver_hello-minikube-5d9b964bfb-ffz5x_default_b4f2d8a0-c133-4b2b-9c57-a7523c6180c1_14
+
+# docker kill k8s_fp-echo-svc_fp-test-svc-7679dd5457-kvkmj_default_afe9afcf-5703-42a1-92bc-4bfcd5afc187_0
+k8s_fp-echo-svc_fp-test-svc-7679dd5457-kvkmj_default_afe9afcf-5703-42a1-92bc-4bfcd5afc187_0
+
+==> your connection is lost
+==> you can reconnect -> the service redirect you to another pod as expected
+
+Session stopped
+    - Press <return> to exit tab
+    - Press R to restart session
+    - Press S to save terminal output to file
+     +--------------------------------------------------------------------+
+     ¦                        • MobaXterm 11.1 •                          ¦
+     ¦            (SSH client, X-server and networking tools)             ¦
+     ¦                                                                    ¦
+     ¦ ? Telnet session to 192.168.99.100                                 ¦
+     ¦ ? Your DISPLAY is set to 192.168.0.11:0.0                          ¦
+     ¦ ? For more info, ctrl+click on help or visit our website           ¦
+     +--------------------------------------------------------------------+
+
+aabbccddee
+
+-- also as expected kubernetes restart a container ...
+
+C:\Kubernetes\Minikube>kubectl get pods -o wide
+NAME                              READY   STATUS             RESTARTS   AGE   IP           NODE       NOMINATED NODE   READINESS GATES
+fp-test-svc-7679dd5457-c6w2x      1/1     Running            0          28m   172.17.0.7   minikube   <none>           <none>
+fp-test-svc-7679dd5457-kvkmj      0/1     CrashLoopBackOff   2          28m   172.17.0.6   minikube   <none>           <none>
+fp-test-svc-7679dd5457-s52d5      1/1     Running            0          28m   172.17.0.8   minikube   <none>           <none>
+hello-minikube-5d9b964bfb-ffz5x   1/1     Running            14         23d   172.17.0.3   minikube   <none>           <none>
+
+C:\Kubernetes\Minikube>kubectl get pods -o wide
+NAME                              READY   STATUS    RESTARTS   AGE   IP           NODE       NOMINATED NODE   READINESS GATES
+fp-test-svc-7679dd5457-c6w2x      1/1     Running   0          31m   172.17.0.7   minikube   <none>           <none>
+fp-test-svc-7679dd5457-kvkmj      1/1     Running   4          31m   172.17.0.6   minikube   <none>           <none>
+fp-test-svc-7679dd5457-s52d5      1/1     Running   0          31m   172.17.0.8   minikube   <none>           <none>
+hello-minikube-5d9b964bfb-ffz5x   1/1     Running   14         23d   172.17.0.3   minikube   <none>           <none>
+
+---- cleanup
+
+C:\Kubernetes\Minikube>kubectl get svc
+NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)           AGE
+fp-service   NodePort    10.96.144.191   <none>        50017:30007/TCP   23m
+kubernetes   ClusterIP   10.96.0.1       <none>        443/TCP           34d
+
+C:\Kubernetes\Minikube>kubectl delete svc fp-service
+service "fp-service" deleted
+
+C:\Kubernetes\Minikube>kubectl get deployment
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+fp-test-svc      3/3     3            3           33m
+hello-minikube   1/1     1            1           34d
+
+C:\Kubernetes\Minikube>kubectl delete deployment fp-test-svc
+deployment.apps "fp-test-svc" deleted
+
+C:\Kubernetes\Minikube>kubectl get secret
+NAME                  TYPE                                  DATA   AGE
+default-token-zrr76   kubernetes.io/service-account-token   3      34d
+fp-private-registry   kubernetes.io/dockerconfigjson        1      54m
+
+C:\Kubernetes\Minikube>kubectl delete secret fp-private-registry
+secret "fp-private-registry" deleted
