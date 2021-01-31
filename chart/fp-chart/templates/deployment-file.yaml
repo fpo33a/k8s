@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fp-test-svc
+  labels:
+    app: fp-test-svc
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: fp-test-echosvc
+  template:
+    metadata:
+      labels:
+        app: fp-test-echosvc
+    spec:
+      imagePullSecrets:
+      - name: {{ .Values.secretname }}
+      containers:
+      - name: fp-echo-svc
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        ports:
+        - containerPort: {{ .Values.image.port }}

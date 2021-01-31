@@ -1,0 +1,407 @@
+*/ create a helm chart
+
+helm create fp-chart
+
+--> creates a fp-chart folder with:
+
+Note:
+
+Helm collects all of the resources in a given Chart and it's dependencies, groups them by resource type, and then installs them in the following order (see here - Helm 2.10):
+
+Namespace
+ResourceQuota
+LimitRange
+PodSecurityPolicy
+Secret
+ConfigMap
+StorageClass
+PersistentVolume
+PersistentVolumeClaim
+ServiceAccount
+CustomResourceDefinition
+ClusterRole
+ClusterRoleBinding
+Role
+RoleBinding
+Service
+DaemonSet
+Pod
+ReplicationController
+ReplicaSet
+Deployment
+StatefulSet
+Job
+CronJob
+Ingress
+APIService
+During uninstallation of a release, the order is reversed (see here).
+
+*/ put your files in template subdirectory
+
+*/ define your variables in Values.yaml
+
+*/ test your chart
+C:\frank\k8s\chart>helm install --dry-run --debug c:\frank\k8s\chart\fp-chart fp-chart
+install.go:173: [debug] Original chart version: ""
+install.go:190: [debug] CHART PATH: C:\frank\k8s\chart\fp-chart
+
+Error: template: fp-chart/templates/deployment-file.yaml:18:24: executing "fp-chart/templates/deployment-file.yaml" at <.Values.imagePullSecrets.name>: can't evaluate field name in type interface {}
+helm.go:81: [debug] template: fp-chart/templates/deployment-file.yaml:18:24: executing "fp-chart/templates/deployment-file.yaml" at <.Values.imagePullSecrets.name>: can't evaluate field name in type interface {}
+
+--> need to fix issue
+
+*/ once issue fixed
+C:\frank\k8s\chart>kubectl delete secret fp-private-registry
+secret "fp-private-registry" deleted
+
+C:\frank\k8s\chart>helm install --dry-run --debug c:\frank\k8s\chart\fp-chart fp-chart
+install.go:173: [debug] Original chart version: ""
+install.go:190: [debug] CHART PATH: C:\frank\k8s\chart\fp-chart
+
+NAME: c:\frank\k8s\chart\fp-chart
+LAST DEPLOYED: Sun Jan 31 09:13:19 2021
+NAMESPACE: default
+STATUS: pending-install
+REVISION: 1
+TEST SUITE: None
+USER-SUPPLIED VALUES:
+{}
+
+COMPUTED VALUES:
+image:
+  name: fp-echo-svc
+  port: 50007
+  pullPolicy: IfNotPresent
+  repository: fpregistry.local:5000/echo
+  tag: 1
+imagePullSecrets:
+- name: fp-private-registry
+replicaCount: 3
+secretname: fp-private-registry
+service:
+  nodeport: 30007
+  port: 50017
+  type: NodePort
+
+HOOKS:
+MANIFEST:
+---
+# Source: fp-chart/templates/secret.yaml
+apiVersion: v1
+data:
+  .dockerconfigjson: xx==
+kind: Secret
+metadata:
+  creationTimestamp: "2021-01-24T15:57:21Z"
+  managedFields:
+  - apiVersion: v1
+    fieldsType: FieldsV1
+    fieldsV1:
+      f:data:
+        .: {}
+        f:.dockerconfigjson: {}
+      f:type: {}
+    manager: kubectl-create
+    operation: Update
+    time: "2021-01-24T15:57:21Z"
+  name: fp-private-registry
+  namespace: default
+  resourceVersion: "16708"
+  uid: 45095779-9efb-4ab9-a746-03a02d892406
+type: kubernetes.io/dockerconfigjson
+---
+# Source: fp-chart/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fp-service
+spec:
+  type: NodePort
+  selector:
+    app: fp-test-echosvc
+  ports:
+    - protocol: TCP
+      port: 50017
+      targetPort: 50007
+      nodePort: 30007
+---
+# Source: fp-chart/templates/deployment-file.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fp-test-svc
+  labels:
+    app: fp-test-svc
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: fp-test-echosvc
+  template:
+    metadata:
+      labels:
+        app: fp-test-echosvc
+    spec:
+      imagePullSecrets:
+      - name: fp-private-registry
+      containers:
+      - name: fp-echo-svc
+        image: fpregistry.local:5000/echo:1
+        ports:
+        - containerPort: 50007
+
+*/ source file used:
+
+C:\frank\k8s\chart>dir /s fp-chart
+ Le volume dans le lecteur C s'appelle TI31128200B
+ Le numéro de série du volume est F063-B02B
+
+ Répertoire de C:\frank\k8s\chart\fp-chart
+
+30-01-21  16:37    <DIR>          .
+30-01-21  16:37    <DIR>          ..
+30-01-21  16:37               349 .helmignore
+31-01-21  08:43             1.150 Chart.yaml
+30-01-21  16:37    <DIR>          charts
+31-01-21  09:03    <DIR>          templates
+31-01-21  09:11               394 values.yaml
+               3 fichier(s)            1.893 octets
+
+ Répertoire de C:\frank\k8s\chart\fp-chart\charts
+
+30-01-21  16:37    <DIR>          .
+30-01-21  16:37    <DIR>          ..
+               0 fichier(s)                0 octets
+
+ Répertoire de C:\frank\k8s\chart\fp-chart\templates
+
+31-01-21  09:03    <DIR>          .
+31-01-21  09:03    <DIR>          ..
+31-01-21  09:11               543 deployment-file.yaml
+31-01-21  09:03               650 secret.yaml
+31-01-21  08:55               305 service.yaml
+               3 fichier(s)            1.498 octets
+
+     Total des fichiers listés :
+               6 fichier(s)            3.391 octets
+               8 Rép(s)  196.239.290.368 octets libres
+               
+C:\frank\k8s\chart>more fp-chart\Chart.yaml
+apiVersion: v2
+name: fp-chart
+description: A first service demo done by Frank
+
+# A chart can be either an 'application' or a 'library' chart.
+#
+# Application charts are a collection of templates that can be packaged into versioned archives
+# to be deployed.
+#
+# Library charts provide useful utilities or functions for the chart developer. They're included as
+# a dependency of application charts to inject those utilities and functions into the rendering
+# pipeline. Library charts do not define any templates and therefore cannot be deployed.
+type: application
+
+# This is the chart version. This version number should be incremented each time you make changes
+# to the chart and its templates, including the app version.
+# Versions are expected to follow Semantic Versioning (https://semver.org/)
+version: 0.1.0
+
+# This is the version number of the application being deployed. This version number should be
+# incremented each time you make changes to the application. Versions are not expected to
+# follow Semantic Versioning. They should reflect the version the application is using.
+# It is recommended to use it with quotes.
+appVersion: "1.0.0"
+
+C:\frank\k8s\chart>more fp-chart\values.yaml
+# Default values for fp-chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 3
+secretname: fp-private-registry
+
+image:
+  repository: fpregistry.local:5000/echo
+  name: fp-echo-svc
+  pullPolicy: IfNotPresent
+  tag: 1
+  port: 50007
+
+imagePullSecrets:
+  - name: fp-private-registry
+
+service:
+  type: NodePort
+  port: 50017
+  nodeport: 30007
+
+C:\frank\k8s\chart>more fp-chart\templates\deployment-file.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fp-test-svc
+  labels:
+    app: fp-test-svc
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: fp-test-echosvc
+  template:
+    metadata:
+      labels:
+        app: fp-test-echosvc
+    spec:
+      imagePullSecrets:
+      - name: {{ .Values.secretname }}
+      containers:
+      - name: fp-echo-svc
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        ports:
+        - containerPort: {{ .Values.image.port }}
+
+C:\frank\k8s\chart>more fp-chart\templates\service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fp-service
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: fp-test-echosvc
+  ports:
+    - protocol: TCP
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.image.port }}
+      nodePort: {{ .Values.service.nodeport }}
+
+C:\frank\k8s\chart>more fp-chart\templates\secret.yaml
+apiVersion: v1
+data:
+  .dockerconfigjson: xx==
+kind: Secret
+metadata:
+  creationTimestamp: "2021-01-24T15:57:21Z"
+  managedFields:
+  - apiVersion: v1
+    fieldsType: FieldsV1
+    fieldsV1:
+      f:data:
+        .: {}
+        f:.dockerconfigjson: {}
+      f:type: {}
+    manager: kubectl-create
+    operation: Update
+    time: "2021-01-24T15:57:21Z"
+  name: fp-private-registry
+  namespace: default
+  resourceVersion: "16708"
+  uid: 45095779-9efb-4ab9-a746-03a02d892406
+type: kubernetes.io/dockerconfigjson
+
+C:\frank\k8s\chart>
+
+*/ package the chart
+
+C:\frank\k8s\chart>helm package C:\frank\k8s\chart\fp-chart
+Successfully packaged chart and saved it to: C:\frank\k8s\chart\fp-chart-0.1.0.tgz
+
+C:\frank\k8s\chart>dir
+ Le volume dans le lecteur C s'appelle TI31128200B
+ Le numéro de série du volume est F063-B02B
+
+ Répertoire de C:\frank\k8s\chart
+
+31-01-21  09:18    <DIR>          .
+31-01-21  09:18    <DIR>          ..
+31-01-21  09:17             8.166 charts.txt
+30-01-21  16:37    <DIR>          fp-chart
+31-01-21  09:18             1.435 fp-chart-0.1.0.tgz
+               2 fichier(s)            9.601 octets
+               3 Rép(s)  196.239.233.024 octets libres
+
+*/ install the package
+
+C:\frank\k8s\chart>kubectl get deployment
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+hello-minikube   1/1     1            1           41d
+
+C:\frank\k8s\chart>kubectl get secret
+NAME                  TYPE                                  DATA   AGE
+default-token-zrr76   kubernetes.io/service-account-token   3      41d
+
+C:\frank\k8s\chart>kubectl get service
+NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP   41d
+
+C:\frank\k8s\chart>helm install fp-chart-0.1.0.tgz fp-chart
+NAME: fp-chart-0.1.0.tgz
+LAST DEPLOYED: Sun Jan 31 09:20:19 2021
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+
+*/ verify all is correctly installed
+
+C:\frank\k8s\chart>kubectl get deployment
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+fp-test-svc      3/3     3            3           19s
+hello-minikube   1/1     1            1           41d
+
+C:\frank\k8s\chart>kubectl get secret
+NAME                                       TYPE                                  DATA   AGE
+default-token-zrr76                        kubernetes.io/service-account-token   3      41d
+fp-private-registry                        kubernetes.io/dockerconfigjson        1      29s
+sh.helm.release.v1.fp-chart-0.1.0.tgz.v1   helm.sh/release.v1                    1      29s
+
+C:\frank\k8s\chart>kubectl get service
+NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)           AGE
+fp-service   NodePort    10.107.118.141   <none>        50017:30007/TCP   34s
+kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP           41d
+
+C:\frank\k8s\chart>kubectl get pod
+NAME                              READY   STATUS    RESTARTS   AGE
+fp-test-svc-7679dd5457-jmlst      1/1     Running   0          43s
+fp-test-svc-7679dd5457-mqz2h      1/1     Running   0          43s
+fp-test-svc-7679dd5457-tqqr8      1/1     Running   0          43s
+hello-minikube-5d9b964bfb-ffz5x   1/1     Running   18         31d
+
+*/ test the service ( echo each character )
+
+     +--------------------------------------------------------------------+
+     ¦                        • MobaXterm 11.1 •                          ¦
+     ¦            (SSH client, X-server and networking tools)             ¦
+     ¦                                                                    ¦
+     ¦ ? Telnet session to 192.168.99.100                                 ¦
+     ¦ ? Your DISPLAY is set to 192.168.0.11:0.0                          ¦
+     ¦ ? For more info, ctrl+click on help or visit our website           ¦
+     +--------------------------------------------------------------------+
+
+aabbccddeeff
+
+===> all working fine
+
+*/ cleanup
+
+
+C:\frank\k8s\chart>helm uninstall fp-chart-0.1.0.tgz fp-chart
+release "fp-chart-0.1.0.tgz" uninstalled
+
+C:\frank\k8s\chart>kubectl get all
+NAME                                  READY   STATUS    RESTARTS   AGE
+pod/hello-minikube-5d9b964bfb-ffz5x   1/1     Running   18         31d
+
+NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+service/kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP   41d
+
+NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/hello-minikube   1/1     1            1           41d
+
+NAME                                        DESIRED   CURRENT   READY   AGE
+replicaset.apps/hello-minikube-5d9b964bfb   1         1         1       41d
+
+C:\frank\k8s\chart>kubectl get pod
+NAME                              READY   STATUS    RESTARTS   AGE
+hello-minikube-5d9b964bfb-ffz5x   1/1     Running   18         31d
+
